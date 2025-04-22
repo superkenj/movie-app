@@ -9,8 +9,8 @@ import MovieCard from "./components/MovieCard"
 
 // Create the Supabase client outside of the component
 const supabase = createClient(
-  "https://igyzofuvkuczbscikiay.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlneXpvZnV2a3VjemJzY2lraWF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyMjgzNTgsImV4cCI6MjA2MDgwNDM1OH0.T_NxTZO8adZQXZW3-5z5tbLcDgNPLjv_eJK_YRPxyYg",
+  "https://<<supabase-url>>.supabase.co",
+  "<<supabase-anon-key>>" // Replace with your Supabase URL and Anon Key
 )
 
 function App() {
@@ -41,7 +41,7 @@ function App() {
   }, []) // Remove the dependency array
 
   const searchMovies = async (query) => {
-    const API_KEY = "5b064a07"
+    const API_KEY = "omdbapi_key" // Replace with your OMDB API key
     try {
       setLoading(true)
       const response = await fetch(`https://www.omdbapi.com/?s=${query}&apikey=${API_KEY}`)
