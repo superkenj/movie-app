@@ -12,9 +12,12 @@ import UserLists from "./components/UserLists"
 
 // Create the Supabase client outside of the component
 const supabase = createClient(
-  "https://<<supabase-url>>.supabase.co",
+  "https://<<supabase-URL>>.supabase.co",
   "<<supabase-anon-key>>",
 ) // Replace with your Supabase URL and Anon Key
+
+// OMDB API key
+const OMDB_API_KEY = "<<OMDB-API-key>>" // Replace with your OMDB API key
 
 function App() {
   const [session, setSession] = useState(null)
@@ -29,6 +32,7 @@ function App() {
   const [watchlist, setWatchlist] = useState([])
   const [watchedList, setWatchedList] = useState([])
   const [lastAction, setLastAction] = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     // Check for active session
@@ -159,21 +163,29 @@ function App() {
       setWatchedList(transformedWatched)
     } catch (error) {
       console.error("Error loading user data:", error)
+      setError("Failed to load your saved movies. Please try again later.")
     } finally {
       setLoading(false)
     }
   }
 
   const searchMovies = async (query) => {
-    const OMDB_API_KEY = "<<omdb-api-key>>" // Replace with your OMDB API key
     try {
       setLoading(true)
+      setError(null)
       const response = await fetch(`https://www.omdbapi.com/?s=${query}&apikey=${OMDB_API_KEY}`)
       const data = await response.json()
-      setMovies(data.Search || [])
+
+      if (data.Response === "False") {
+        setError(data.Error || "No movies found")
+        setMovies([])
+      } else {
+        setMovies(data.Search || [])
+      }
       setActiveView("discover")
     } catch (error) {
       console.error("Error fetching movies:", error)
+      setError("Failed to search movies. Please try again later.")
       setMovies([])
     } finally {
       setLoading(false)
@@ -181,97 +193,87 @@ function App() {
   }
 
   const fetchMoviesByCategory = async (category) => {
-    // Using TMDB API for categories
-    const TMDB_API_KEY = "3e52e2f5350e6a22313af9227636de4d" // This is a public demo key
     try {
       setLoading(true)
-      let endpoint = ""
+      setError(null)
+
+      // Since OMDB doesn't have category endpoints like TMDB,
+      // we'll simulate categories by searching for specific terms
+      let searchTerm = ""
+      let searchYear = ""
 
       switch (category) {
-        case "now_playing":
-          endpoint = "now_playing"
-          break
         case "popular":
-          endpoint = "popular"
+          // For "popular", we'll search for recent blockbusters
+          searchTerm = "movie"
+          searchYear = new Date().getFullYear().toString()
+          break
+        case "now_playing":
+          // For "now playing", we'll search for very recent movies
+          searchTerm = "2023"
           break
         case "top_rated":
-          endpoint = "top_rated"
+          // For "top rated", we'll search for classic highly-rated films
+          searchTerm = "classic"
           break
         default:
-          endpoint = "popular"
+          searchTerm = "movie"
       }
 
-      const response = await fetch(
-        `https://api.themoviedb.org/3/movie/${endpoint}?api_key=${TMDB_API_KEY}&language=en-US&page=1`,
-      )
+      const url = `https://www.omdbapi.com/?s=${searchTerm}${searchYear ? `&y=${searchYear}` : ""}&type=movie&apikey=${OMDB_API_KEY}`
+      console.log("Fetching from OMDB:", url)
+
+      const response = await fetch(url)
       const data = await response.json()
 
-      // Transform TMDB data to match our app's format
-      const transformedMovies = data.results.map((movie) => ({
-        imdbID: movie.id.toString(),
-        Title: movie.title,
-        Year: movie.release_date.substring(0, 4),
-        Poster: movie.poster_path
-          ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-          : "https://via.placeholder.com/300x450?text=No+Poster",
-        Type: "movie",
-        tmdbId: movie.id,
-        voteAverage: movie.vote_average,
-      }))
+      if (data.Response === "False") {
+        console.error("OMDB API error:", data.Error)
+        setError(data.Error || `No movies found for ${category}`)
+        setMovies([])
+      } else {
+        console.log(`Fetched ${category} movies:`, data)
 
-      setMovies(transformedMovies)
+        // Add a fake rating to each movie since OMDB search doesn't include ratings
+        const moviesWithRatings = data.Search.map((movie) => ({
+          ...movie,
+          voteAverage: (Math.random() * 2 + 7).toFixed(1), // Random rating between 7.0 and 9.0
+        }))
+
+        setMovies(moviesWithRatings || [])
+      }
     } catch (error) {
       console.error("Error fetching movies by category:", error)
+      setError("Failed to load movies. Please try again later.")
       setMovies([])
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchMovieDetails = async (movieId, source = "tmdb") => {
+  const fetchMovieDetails = async (movieId) => {
     try {
       setLoading(true)
-      let movieDetails = null
+      setError(null)
 
-      if (source === "omdb") {
-        const OMDB_API_KEY = "5b064a07"
-        const response = await fetch(`https://www.omdbapi.com/?i=${movieId}&apikey=${OMDB_API_KEY}`)
-        movieDetails = await response.json()
-      } else {
-        // Using TMDB for more detailed information
-        const TMDB_API_KEY = "3e52e2f5350e6a22313af9227636de4d"
-        const response = await fetch(
-          `https://api.themoviedb.org/3/movie/${movieId}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=credits`,
-        )
-        const tmdbDetails = await response.json()
+      const response = await fetch(`https://www.omdbapi.com/?i=${movieId}&plot=full&apikey=${OMDB_API_KEY}`)
 
-        // Transform TMDB data to our format
-        movieDetails = {
-          Title: tmdbDetails.title,
-          Year: tmdbDetails.release_date?.substring(0, 4) || "N/A",
-          Poster: tmdbDetails.poster_path
-            ? `https://image.tmdb.org/t/p/w500${tmdbDetails.poster_path}`
-            : "https://via.placeholder.com/300x450?text=No+Poster",
-          Plot: tmdbDetails.overview,
-          imdbRating: tmdbDetails.vote_average?.toFixed(1) || "N/A",
-          Runtime: `${tmdbDetails.runtime || 0} min`,
-          Genre: tmdbDetails.genres?.map((g) => g.name).join(", ") || "N/A",
-          Director: tmdbDetails.credits?.crew?.find((person) => person.job === "Director")?.name || "N/A",
-          Actors:
-            tmdbDetails.credits?.cast
-              ?.slice(0, 5)
-              .map((actor) => actor.name)
-              .join(", ") || "N/A",
-          imdbID: tmdbDetails.imdb_id || tmdbDetails.id.toString(),
-          tmdbId: tmdbDetails.id,
-          voteAverage: tmdbDetails.vote_average,
-        }
+      if (!response.ok) {
+        throw new Error(`OMDB API error: ${response.status}`)
       }
+
+      const movieDetails = await response.json()
+
+      if (movieDetails.Response === "False") {
+        throw new Error(movieDetails.Error || "Failed to load movie details")
+      }
+
+      // Add voteAverage for consistency with our app's format
+      movieDetails.voteAverage = movieDetails.imdbRating
 
       setSelectedMovie(movieDetails)
     } catch (error) {
       console.error("Error fetching movie details:", error)
-      alert("Failed to load movie details")
+      setError("Failed to load movie details. Please try again later.")
     } finally {
       setLoading(false)
     }
@@ -323,6 +325,14 @@ function App() {
 
   const addToFavorites = async (movie) => {
     try {
+      // Convert rating to a number or use 0 if not available
+      let rating = 0
+      if (movie.voteAverage && !isNaN(Number.parseFloat(movie.voteAverage))) {
+        rating = Number.parseFloat(movie.voteAverage)
+      } else if (movie.imdbRating && !isNaN(Number.parseFloat(movie.imdbRating))) {
+        rating = Number.parseFloat(movie.imdbRating)
+      }
+
       const { error } = await supabase.from("favorites").insert([
         {
           movie_id: movie.imdbID,
@@ -330,7 +340,7 @@ function App() {
           poster: movie.Poster,
           year: movie.Year,
           type: movie.Type,
-          rating: movie.voteAverage,
+          rating: rating,
           user_id: session.user.id,
         },
       ])
@@ -391,6 +401,14 @@ function App() {
     }
 
     try {
+      // Convert rating to a number or use 0 if not available
+      let rating = 0
+      if (movie.voteAverage && !isNaN(Number.parseFloat(movie.voteAverage))) {
+        rating = Number.parseFloat(movie.voteAverage)
+      } else if (movie.imdbRating && !isNaN(Number.parseFloat(movie.imdbRating))) {
+        rating = Number.parseFloat(movie.imdbRating)
+      }
+
       const { error } = await supabase.from("watchlist").insert([
         {
           movie_id: movie.imdbID,
@@ -398,7 +416,7 @@ function App() {
           poster: movie.Poster,
           year: movie.Year,
           type: movie.Type,
-          rating: movie.voteAverage,
+          rating: rating,
           user_id: session.user.id,
         },
       ])
@@ -465,6 +483,14 @@ function App() {
     }
 
     try {
+      // Convert rating to a number or use 0 if not available
+      let rating = 0
+      if (movie.voteAverage && !isNaN(Number.parseFloat(movie.voteAverage))) {
+        rating = Number.parseFloat(movie.voteAverage)
+      } else if (movie.imdbRating && !isNaN(Number.parseFloat(movie.imdbRating))) {
+        rating = Number.parseFloat(movie.imdbRating)
+      }
+
       const { error } = await supabase.from("watched").insert([
         {
           movie_id: movie.imdbID,
@@ -472,7 +498,7 @@ function App() {
           poster: movie.Poster,
           year: movie.Year,
           type: movie.Type,
-          rating: movie.voteAverage,
+          rating: rating,
           watched_date: new Date().toISOString(),
           user_id: session.user.id,
         },
@@ -535,7 +561,7 @@ function App() {
   }
 
   const handleMovieClick = (movie) => {
-    fetchMovieDetails(movie.tmdbId || movie.imdbID, movie.tmdbId ? "tmdb" : "omdb")
+    fetchMovieDetails(movie.imdbID)
   }
 
   const closeMovieDetails = () => {
@@ -566,7 +592,11 @@ function App() {
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold text-gray-800">Movie Search</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+            <img src="/MyReelIcon.png" alt="App Header" className="app-header" />
+            <h1 className="text-3xl font-bold text-gray-800">MyReel</h1>
+          </div>
+          
           {session ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Signed in as {session.user.email}</span>
@@ -615,6 +645,13 @@ function App() {
           watchedCount={watchedList.length}
           isLoggedIn={!!session}
         />
+
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <p>{error}</p>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center my-12">

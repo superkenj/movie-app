@@ -149,7 +149,7 @@ const MovieCard = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition h-full flex flex-col">
-      <div className="cursor-pointer" onClick={onClick}>
+      <div className="cursor-pointer relative" onClick={onClick}>
         <img src={posterUrl || "/placeholder.svg"} alt={movie.Title} className="w-full h-64 object-cover" />
         <div className="p-4 flex-grow">
           <h3 className="text-xl font-bold mb-1">{movie.Title}</h3>
