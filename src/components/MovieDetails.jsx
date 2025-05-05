@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { searchWithFallbacks, getYouTubeEmbedUrl } from "../services/youtube-service"
+import MovieReviews from "./MovieReviews"
 
 // Add these custom SVG icon components
 const Play = (props) => (
@@ -195,6 +196,7 @@ const MovieDetails = ({
   const [trailerError, setTrailerError] = useState(false)
   const [trailerLoading, setTrailerLoading] = useState(false)
   const [trailerUrl, setTrailerUrl] = useState(null)
+  const [activeTab, setActiveTab] = useState("details") // "details" or "reviews"
 
   // Function to fetch the trailer when the Play button is clicked
   const handlePlayTrailer = async () => {
@@ -287,136 +289,170 @@ const MovieDetails = ({
             )}
           </div>
         ) : (
-          <div className="flex flex-col md:flex-row">
-            {/* Movie Poster */}
-            <div className="md:w-1/3 p-4">
-              <img
-                src={movie.Poster || "/placeholder.svg"}
-                alt={movie.Title}
-                className="w-full h-auto rounded-lg shadow-md"
-              />
+          <div className="flex flex-col">
+            <div className="flex flex-col md:flex-row">
+              {/* Movie Poster */}
+              <div className="md:w-1/3 p-4">
+                <img
+                  src={movie.Poster || "/placeholder.svg"}
+                  alt={movie.Title}
+                  className="w-full h-auto rounded-lg shadow-md"
+                />
 
-              {/* Action buttons */}
-              {isLoggedIn ? (
-                <div className="grid grid-cols-3 gap-2 mt-4">
-                  {inFavorites ? (
-                    <button
-                      onClick={onRemoveFromFavorites}
-                      className="flex items-center justify-center p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
-                      title="Remove from favorites"
-                    >
-                      <HeartOff className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Unfavorite</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={onAddToFavorites}
-                      className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-red-100 hover:text-red-700 transition"
-                      title="Add to favorites"
-                    >
-                      <Heart className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Favorite</span>
-                    </button>
-                  )}
+                {/* Action buttons */}
+                {isLoggedIn ? (
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    {inFavorites ? (
+                      <button
+                        onClick={onRemoveFromFavorites}
+                        className="flex items-center justify-center p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                        title="Remove from favorites"
+                      >
+                        <HeartOff className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Unfavorite</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={onAddToFavorites}
+                        className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-red-100 hover:text-red-700 transition"
+                        title="Add to favorites"
+                      >
+                        <Heart className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Favorite</span>
+                      </button>
+                    )}
 
-                  {inWatchlist ? (
-                    <button
-                      onClick={onRemoveFromWatchlist}
-                      className="flex items-center justify-center p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
-                      title="Remove from watchlist"
-                    >
-                      <BookmarkCheck className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Remove</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={onAddToWatchlist}
-                      className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition"
-                      title="Add to watchlist"
-                    >
-                      <BookmarkPlus className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Watchlist</span>
-                    </button>
-                  )}
+                    {inWatchlist ? (
+                      <button
+                        onClick={onRemoveFromWatchlist}
+                        className="flex items-center justify-center p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition"
+                        title="Remove from watchlist"
+                      >
+                        <BookmarkCheck className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Remove</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={onAddToWatchlist}
+                        className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition"
+                        title="Add to watchlist"
+                      >
+                        <BookmarkPlus className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Watchlist</span>
+                      </button>
+                    )}
 
-                  {isWatched ? (
-                    <button
-                      onClick={onRemoveFromWatched}
-                      className="flex items-center justify-center p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
-                      title="Remove from watched"
-                    >
-                      <EyeOff className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Unwatched</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={onMarkAsWatched}
-                      className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-green-100 hover:text-green-700 transition"
-                      title="Mark as watched"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      <span className="text-sm">Watched</span>
-                    </button>
+                    {isWatched ? (
+                      <button
+                        onClick={onRemoveFromWatched}
+                        className="flex items-center justify-center p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+                        title="Remove from watched"
+                      >
+                        <EyeOff className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Unwatched</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={onMarkAsWatched}
+                        className="flex items-center justify-center p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-green-100 hover:text-green-700 transition"
+                        title="Mark as watched"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        <span className="text-sm">Watched</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={onAddToFavorites} // This will trigger the login modal
+                    className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center"
+                  >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign in to track movies
+                  </button>
+                )}
+
+                {/* Add Play Trailer button */}
+                <button
+                  onClick={handlePlayTrailer}
+                  className="w-full mt-4 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition"
+                >
+                  <Play className="w-4 h-4" />
+                  Play Trailer
+                </button>
+              </div>
+
+              {/* Movie Details */}
+              <div className="md:w-2/3 p-6">
+                <h2 className="text-3xl font-bold mb-2">{movie.Title}</h2>
+                <div className="flex items-center mb-4">
+                  <span className="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
+                    {movie.Year}
+                  </span>
+                  <span className="bg-gray-100 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
+                    {movie.Runtime}
+                  </span>
+                  {movie.imdbRating && (
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-yellow-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00.951-.69l1.07-3.292z"></path>
+                      </svg>
+                      <span className="text-gray-700">{movie.imdbRating}</span>
+                    </div>
                   )}
                 </div>
-              ) : (
-                <button
-                  onClick={onAddToFavorites} // This will trigger the login modal
-                  className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center"
-                >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Sign in to track movies
-                </button>
-              )}
 
-              {/* Add Play Trailer button */}
-              <button
-                onClick={handlePlayTrailer}
-                className="w-full mt-4 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition"
-              >
-                <Play className="w-4 h-4" />
-                Play Trailer
-              </button>
-            </div>
+                {/* Tabs for Details and Reviews */}
+                <div className="border-b border-gray-200 mb-4">
+                  <nav className="flex space-x-8">
+                    <button
+                      onClick={() => setActiveTab("details")}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === "details"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      Details
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("reviews")}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === "reviews"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      Reviews
+                    </button>
+                  </nav>
+                </div>
 
-            {/* Movie Details */}
-            <div className="md:w-2/3 p-6">
-              <h2 className="text-3xl font-bold mb-2">{movie.Title}</h2>
-              <div className="flex items-center mb-4">
-                <span className="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
-                  {movie.Year}
-                </span>
-                <span className="bg-gray-100 text-gray-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
-                  {movie.Runtime}
-                </span>
-                {movie.imdbRating && (
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 text-yellow-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00.951-.69l1.07-3.292z"></path>
-                    </svg>
-                    <span className="text-gray-700">{movie.imdbRating}</span>
-                  </div>
+                {activeTab === "details" ? (
+                  <>
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-1">Genre</h3>
+                      <p className="text-gray-700">{movie.Genre}</p>
+                    </div>
+
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-1">Plot</h3>
+                      <p className="text-gray-700">{movie.Plot}</p>
+                    </div>
+
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-1">Director</h3>
+                      <p className="text-gray-700">{movie.Director}</p>
+                    </div>
+
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-1">Cast</h3>
+                      <p className="text-gray-700">{movie.Actors}</p>
+                    </div>
+                  </>
+                ) : (
+                  <MovieReviews movie={movie} userId={isLoggedIn ? movie.user_id : null} isLoggedIn={isLoggedIn} />
                 )}
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-1">Genre</h3>
-                <p className="text-gray-700">{movie.Genre}</p>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-1">Plot</h3>
-                <p className="text-gray-700">{movie.Plot}</p>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-1">Director</h3>
-                <p className="text-gray-700">{movie.Director}</p>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-1">Cast</h3>
-                <p className="text-gray-700">{movie.Actors}</p>
               </div>
             </div>
           </div>

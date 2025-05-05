@@ -9,24 +9,30 @@ import MovieCard from "./components/MovieCard"
 import MovieDetails from "./components/MovieDetails"
 import CategorySelector from "./components/CategorySelector"
 import UserLists from "./components/UserLists"
+// Import GenreFilter at the top with other imports
+import GenreFilter from "./components/GenreFilter"
+import { initializeSupabase } from "./services/supabase-service"
 
 // Create the Supabase client outside of the component
 const supabase = createClient(
-  "https://<<supabase-URL>>.supabase.co",
+  "https://<<supabase-url>>.supabase.co",
   "<<supabase-anon-key>>",
 ) // Replace with your Supabase URL and Anon Key
 
 // OMDB API key
-const OMDB_API_KEY = "<<OMDB-API-key>>" // Replace with your OMDB API key
+const OMDB_API_KEY = "<<your-omdb-api-key>>" // Replace with your OMDB API key
 
 function App() {
   const [session, setSession] = useState(null)
   const [movies, setMovies] = useState([])
+  const [filteredMovies, setFilteredMovies] = useState([])
   const [loading, setLoading] = useState(true)
   const [showLogin, setShowLogin] = useState(false)
   const [loginMessage, setLoginMessage] = useState("Sign in to save your movie lists across devices")
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState("popular")
+  // Add selectedGenre state in the App function component
+  const [selectedGenre, setSelectedGenre] = useState("all")
   const [activeView, setActiveView] = useState("discover") // discover, watchlist, watched, favorites
   const [favorites, setFavorites] = useState([])
   const [watchlist, setWatchlist] = useState([])
@@ -35,6 +41,9 @@ function App() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    // Initialize Supabase tables and functions
+    initializeSupabase().catch(console.error)
+
     // Check for active session
     const checkSession = async () => {
       const {
@@ -73,12 +82,37 @@ function App() {
     checkSession()
   }, [])
 
-  // Load movies by category when component mounts or category changes
+  // Load movies by category or genre when component mounts or when category/genre changes
   useEffect(() => {
     if (activeView === "discover") {
-      fetchMoviesByCategory(selectedCategory)
+      if (selectedGenre === "all") {
+        fetchMoviesByCategory(selectedCategory)
+      } else {
+        fetchMoviesByGenre(selectedGenre)
+      }
     }
-  }, [selectedCategory, activeView])
+  }, [selectedCategory, selectedGenre, activeView])
+
+  // Remove or comment out this problematic useEffect that's causing the infinite loop:
+  // useEffect(() => {
+  //   if (selectedGenre) {
+  //     const filtered = movies.filter((movie) => {
+  //       // If we have detailed movie info with genre
+  //       if (movie.Genre) {
+  //         return movie.Genre.includes(selectedGenre)
+  //       }
+  //       // For movies without detailed genre info, we'll need to fetch it
+  //       else {
+  //         fetchMovieGenre(movie)
+  //         // Default to showing the movie until we know its genre
+  //         return true
+  //       }
+  //     })
+  //     setFilteredMovies(filtered)
+  //   } else {
+  //     setFilteredMovies(movies)
+  //   }
+  // }, [movies, selectedGenre])
 
   // Load user lists when activeView changes
   useEffect(() => {
@@ -93,13 +127,68 @@ function App() {
     }
 
     if (activeView === "watchlist") {
+      const moviesToShow = selectedGenre
+        ? watchlist.filter((movie) => movie.Genre && movie.Genre.includes(selectedGenre))
+        : watchlist
+      setFilteredMovies(moviesToShow)
       setMovies(watchlist)
     } else if (activeView === "watched") {
+      const moviesToShow = selectedGenre
+        ? watchedList.filter((movie) => movie.Genre && movie.Genre.includes(selectedGenre))
+        : watchedList
+      setFilteredMovies(moviesToShow)
       setMovies(watchedList)
     } else if (activeView === "favorites") {
+      const moviesToShow = selectedGenre
+        ? favorites.filter((movie) => movie.Genre && movie.Genre.includes(selectedGenre))
+        : favorites
+      setFilteredMovies(moviesToShow)
       setMovies(favorites)
     }
-  }, [activeView, watchlist, watchedList, favorites, session])
+  }, [activeView, watchlist, watchedList, favorites, session, selectedGenre])
+
+  const fetchMovieGenre = async (movie) => {
+    // Skip if we already have the genre or if it's already being fetched
+    if (movie.Genre || movie.fetchingGenre) return
+
+    try {
+      // Mark as being fetched to avoid duplicate requests
+      movie.fetchingGenre = true
+
+      const response = await fetch(`https://www.omdbapi.com/?i=${movie.imdbID}&apikey=${OMDB_API_KEY}`)
+      const data = await response.json()
+
+      if (data.Response === "True" && data.Genre) {
+        // Update the movie with genre info
+        const updatedMovies = movies.map((m) => (m.imdbID === movie.imdbID ? { ...m, Genre: data.Genre } : m))
+        setMovies(updatedMovies)
+
+        // Also update the appropriate list
+        if (activeView === "favorites") {
+          const updatedFavorites = favorites.map((m) => (m.imdbID === movie.imdbID ? { ...m, Genre: data.Genre } : m))
+          setFavorites(updatedFavorites)
+        } else if (activeView === "watchlist") {
+          const updatedWatchlist = watchlist.map((m) => (m.imdbID === movie.imdbID ? { ...m, Genre: data.Genre } : m))
+          setWatchlist(updatedWatchlist)
+        } else if (activeView === "watched") {
+          const updatedWatched = watchedList.map((m) => (m.imdbID === movie.imdbID ? { ...m, Genre: data.Genre } : m))
+          setWatchedList(updatedWatched)
+        }
+
+        // Re-apply genre filter
+        if (selectedGenre) {
+          const filtered = movies
+            .map((m) => (m.imdbID === movie.imdbID ? { ...m, Genre: data.Genre } : m))
+            .filter((m) => m.Genre && m.Genre.includes(selectedGenre))
+          setFilteredMovies(filtered)
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching movie genre:", error)
+    } finally {
+      movie.fetchingGenre = false
+    }
+  }
 
   const loadUserData = async (userId) => {
     try {
@@ -137,6 +226,7 @@ function App() {
         Poster: item.poster,
         Type: item.type,
         voteAverage: item.rating,
+        Genre: item.genre || null,
       }))
 
       const transformedWatchlist = watchlistData.map((item) => ({
@@ -146,6 +236,7 @@ function App() {
         Poster: item.poster,
         Type: item.type,
         voteAverage: item.rating,
+        Genre: item.genre || null,
       }))
 
       const transformedWatched = watchedData.map((item) => ({
@@ -156,6 +247,7 @@ function App() {
         Type: item.type,
         voteAverage: item.rating,
         watchedDate: item.watched_date,
+        Genre: item.genre || null,
       }))
 
       setFavorites(transformedFavorites)
@@ -179,14 +271,67 @@ function App() {
       if (data.Response === "False") {
         setError(data.Error || "No movies found")
         setMovies([])
+        setFilteredMovies([])
       } else {
         setMovies(data.Search || [])
+        setFilteredMovies(data.Search || [])
       }
       setActiveView("discover")
+      setSelectedGenre(null) // Reset genre filter on new search
     } catch (error) {
       console.error("Error fetching movies:", error)
       setError("Failed to search movies. Please try again later.")
       setMovies([])
+      setFilteredMovies([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Add a new function to fetch movies by genre
+  const fetchMoviesByGenre = async (genre) => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // If "all" is selected, use the category-based search
+      if (genre === "all") {
+        fetchMoviesByCategory(selectedCategory)
+        return
+      }
+
+      // For specific genres, search for that genre
+      const searchTerm = genre
+      const url = `https://www.omdbapi.com/?s=${searchTerm}&type=movie&apikey=${OMDB_API_KEY}`
+
+      console.log(`Fetching ${genre} movies from OMDB:`, url)
+
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.Response === "False") {
+        console.error("OMDB API error:", data.Error)
+        setError(data.Error || `No movies found for ${genre}`)
+        setMovies([])
+        setFilteredMovies([])
+      } else {
+        console.log(`Fetched ${genre} movies:`, data)
+
+        // Add a fake rating to each movie since OMDB search doesn't include ratings
+        const moviesWithRatings = data.Search.map((movie) => ({
+          ...movie,
+          voteAverage: (Math.random() * 2 + 7).toFixed(1), // Random rating between 7.0 and 9.0
+          Genre: genre.charAt(0).toUpperCase() + genre.slice(1), // Capitalize the genre
+        })).slice(0, 10) // Limit to top 10
+
+        setMovies(moviesWithRatings || [])
+        setFilteredMovies(moviesWithRatings || [])
+      }
+    } catch (error) {
+      console.error(`Error fetching ${genre} movies:`, error)
+      setError("Failed to load movies. Please try again later.")
+      setMovies([])
+      setFilteredMovies([])
     } finally {
       setLoading(false)
     }
@@ -230,6 +375,7 @@ function App() {
         console.error("OMDB API error:", data.Error)
         setError(data.Error || `No movies found for ${category}`)
         setMovies([])
+        setFilteredMovies([])
       } else {
         console.log(`Fetched ${category} movies:`, data)
 
@@ -240,11 +386,13 @@ function App() {
         }))
 
         setMovies(moviesWithRatings || [])
+        setFilteredMovies(moviesWithRatings || [])
       }
     } catch (error) {
       console.error("Error fetching movies by category:", error)
       setError("Failed to load movies. Please try again later.")
       setMovies([])
+      setFilteredMovies([])
     } finally {
       setLoading(false)
     }
@@ -269,6 +417,34 @@ function App() {
 
       // Add voteAverage for consistency with our app's format
       movieDetails.voteAverage = movieDetails.imdbRating
+
+      // Add user_id if logged in
+      if (session) {
+        movieDetails.user_id = session.user.id
+      }
+
+      // Update the movie in our lists with the genre information
+      if (movieDetails.Genre) {
+        // Update in the main movies list
+        setMovies((prevMovies) =>
+          prevMovies.map((m) => (m.imdbID === movieId ? { ...m, Genre: movieDetails.Genre } : m)),
+        )
+
+        // Update in the appropriate list based on active view
+        if (activeView === "favorites") {
+          setFavorites((prevList) =>
+            prevList.map((m) => (m.imdbID === movieId ? { ...m, Genre: movieDetails.Genre } : m)),
+          )
+        } else if (activeView === "watchlist") {
+          setWatchlist((prevList) =>
+            prevList.map((m) => (m.imdbID === movieId ? { ...m, Genre: movieDetails.Genre } : m)),
+          )
+        } else if (activeView === "watched") {
+          setWatchedList((prevList) =>
+            prevList.map((m) => (m.imdbID === movieId ? { ...m, Genre: movieDetails.Genre } : m)),
+          )
+        }
+      }
 
       setSelectedMovie(movieDetails)
     } catch (error) {
@@ -342,6 +518,7 @@ function App() {
           type: movie.Type,
           rating: rating,
           user_id: session.user.id,
+          genre: movie.Genre || null,
         },
       ])
 
@@ -387,6 +564,7 @@ function App() {
         // If we're in favorites view, update the movies list too
         if (activeView === "favorites") {
           setMovies(movies.filter((m) => m.imdbID !== movie.imdbID))
+          setFilteredMovies(filteredMovies.filter((m) => m.imdbID !== movie.imdbID))
         }
       }
     } catch (error) {
@@ -418,6 +596,7 @@ function App() {
           type: movie.Type,
           rating: rating,
           user_id: session.user.id,
+          genre: movie.Genre || null,
         },
       ])
 
@@ -463,6 +642,7 @@ function App() {
         // If we're in watchlist view, update the movies list too
         if (activeView === "watchlist") {
           setMovies(movies.filter((m) => m.imdbID !== movie.imdbID))
+          setFilteredMovies(filteredMovies.filter((m) => m.imdbID !== movie.imdbID))
         }
       }
     } catch (error) {
@@ -501,6 +681,7 @@ function App() {
           rating: rating,
           watched_date: new Date().toISOString(),
           user_id: session.user.id,
+          genre: movie.Genre || null,
         },
       ])
 
@@ -547,6 +728,7 @@ function App() {
         // If we're in watched view, update the movies list too
         if (activeView === "watched") {
           setMovies(movies.filter((m) => m.imdbID !== movie.imdbID))
+          setFilteredMovies(filteredMovies.filter((m) => m.imdbID !== movie.imdbID))
         }
       }
     } catch (error) {
@@ -555,9 +737,26 @@ function App() {
     }
   }
 
+  // Add a handler for genre selection
+  const handleGenreSelect = (genre) => {
+    if (genre === selectedGenre) return // Don't update if the genre hasn't changed
+
+    setSelectedGenre(genre)
+
+    if (activeView !== "discover") {
+      setActiveView("discover")
+    }
+  }
+
+  // Update the handleCategoryChange function to reset genre
   const handleCategoryChange = (category) => {
     setSelectedCategory(category)
+    setSelectedGenre("all") // Reset genre filter on category change
     setActiveView("discover")
+  }
+
+  const handleGenreChange = (genre) => {
+    setSelectedGenre(genre)
   }
 
   const handleMovieClick = (movie) => {
@@ -596,7 +795,7 @@ function App() {
             <img src="/MyReelIcon.png" alt="App Header" className="app-header" />
             <h1 className="text-3xl font-bold text-gray-800">MyReel</h1>
           </div>
-          
+
           {session ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Signed in as {session.user.email}</span>
@@ -620,12 +819,18 @@ function App() {
           )}
         </div>
 
+        {/* Category and Genre Filters */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="w-full md:w-2/3">
-            <SearchBar onSearch={searchMovies} />
+          <div className="w-full md:w-1/3">
+            <h2 className="text-lg font-medium text-gray-700 mb-2">Category</h2>
+            <CategorySelector selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
           </div>
           <div className="w-full md:w-1/3">
-            <CategorySelector selectedCategory={selectedCategory} onCategoryChange={handleCategoryChange} />
+            <h2 className="text-lg font-medium text-gray-700 mb-2">Genre</h2>
+            <GenreFilter selectedGenre={selectedGenre} onGenreSelect={handleGenreSelect} />
+          </div>
+          <div className="w-full md:w-1/3">
+            <SearchBar onSearch={searchMovies} />
           </div>
         </div>
 
@@ -657,9 +862,9 @@ function App() {
           <div className="flex justify-center my-12">
             <div className="text-xl">Loading movies...</div>
           </div>
-        ) : movies.length > 0 ? (
+        ) : filteredMovies.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {movies.map((movie) => (
+            {filteredMovies.map((movie) => (
               <MovieCard
                 key={movie.imdbID}
                 movie={movie}
@@ -681,8 +886,12 @@ function App() {
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">
               {activeView === "discover"
-                ? "No movies found. Try another search or category."
-                : `Your ${activeView} is empty.`}
+                ? selectedGenre
+                  ? `No ${selectedGenre} movies found. Try another genre or search.`
+                  : "No movies found. Try another search or category."
+                : selectedGenre
+                  ? `Your ${activeView} doesn't have any ${selectedGenre} movies.`
+                  : `Your ${activeView} is empty.`}
             </p>
           </div>
         )}

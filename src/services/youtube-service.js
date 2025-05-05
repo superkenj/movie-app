@@ -2,7 +2,7 @@
 export async function searchMovieTrailer(movieTitle, movieYear) {
   // Hardcoded API key for development
   // In production, this should be replaced with an environment variable
-  const apiKey = "<<YT-API-key>>" // Replace with your YT API key
+  const apiKey = "<<your-youtube-api-key>>" // Replace with your YouTube API key
 
   try {
     const searchQuery = `${movieTitle} ${movieYear} official trailer`
